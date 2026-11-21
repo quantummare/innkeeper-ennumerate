@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Inkeeper-Ennumerate", "Inkeeper-Ennumerate\Inkeeper-Ennumerate.csproj", "{CBFA49CA-DF6E-460F-9F6B-BC3176370486}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CBFA49CA-DF6E-460F-9F6B-BC3176370486}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBFA49CA-DF6E-460F-9F6B-BC3176370486}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBFA49CA-DF6E-460F-9F6B-BC3176370486}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBFA49CA-DF6E-460F-9F6B-BC3176370486}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
