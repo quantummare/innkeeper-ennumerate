@@ -40,7 +40,8 @@ class Inkeeper_Ennumerate
 
     static void Main()
     {
-        
+        var c = new Inkeeper_Ennumerate();
+        c.Run();
     }
 
     void Run()
@@ -60,7 +61,7 @@ class Inkeeper_Ennumerate
         
         
     }
-
+    
     int[,] ToMinimization(int[,] array)
     {
         for (int i = 0; i < array.Length; i++)
@@ -140,11 +141,132 @@ class Inkeeper_Ennumerate
         
         return newarray;
     }
-    
-    void ZeroCover()
+
+    void Hungarian(int[,] array)
     {
         //turn matrix into a bipartite graph
         //While an augmenting path exists, add not-matching edges of path to matching and remove matching edges
+        
+        int[,] graph = ToGraph(array);
+        int[,] matchedgraph = FindAugmenting(graph);
+        int[,] newarray = new int[array.GetLength(0), array.GetLength(1)];
+        array.CopyTo(newarray, 0);
+
+        while (!IsPerfectMatching(matchedgraph))
+        {
+            matchedgraph = FindAugmenting(matchedgraph);
+            (List<int>, List<int>) Z = ZeroCover(matchedgraph);
+            int min = findMinZ(Z.Item1, Z.Item2, newarray);
+            adjustCells(min, newarray, Z.Item1, Z.Item2);
+        }
+    }
+
+    bool IsPerfectMatching(int[,] graph)
+    {
+        for (int i = 0; i < CUSTOMER_COUNT; i++)
+        {
+            if (graph[i, CUSTOMER_COUNT] != 0)
+            {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    (List<int>, List<int>) ZeroCover(int[,] graph)
+    {
+        List<int> Zrows = new List<int>();
+        List<int> Zcols = new List<int>();
+        
+        //add unmatched rows to Zrows
+        for (int row = 0; row < graph.GetLength(0); row++)
+        {
+            if (graph[row, CUSTOMER_COUNT] == -1)
+            {
+                Zrows.Add(row);
+            }
+        }
+        
+        //then add new columns if a cell is 1 or new rows if a cell is -1
+
+        bool isCol = false;
+        bool addedsomething = true;
+
+        while (addedsomething)
+        {
+            addedsomething = false;
+            
+            if (isCol)
+            {
+                for (int i = 0; i < Zcols.Count; i++)
+                {
+                    for (int row = 0; row < CUSTOMER_COUNT; row++)
+                    {
+                        if (graph[row, Zcols[i]] == -1 && Zrows.Contains(row))
+                        {
+                            Zrows.Add(row);
+                            addedsomething = true;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                for (int i = 0; i < Zrows.Count; i++)
+                {
+                    for (int col = 0; col < CUSTOMER_COUNT; col++)
+                    {
+                        if (graph[Zrows[i], col] == 1 && !Zcols.Contains(col))
+                        {
+                            Zcols.Add(col);
+                            addedsomething = true;
+                        }
+                    }
+                }
+            }
+            
+            isCol = !isCol;
+        }
+        
+        return (Zrows, Zcols);
+    }
+
+    int findMinZ(List<int> zrows, List<int> zcols, int[,] array)
+    {
+        int min = MAX_CUSTOMER_AMENITY_SCORE;
+        for (int row = 0; row < CUSTOMER_COUNT; row++)
+        {
+            for (int col = 0; col < CUSTOMER_COUNT; col++)
+            {
+                if (zrows.Contains(row) && !zcols.Contains(col) && array[row, col] < min)
+                {
+                    min = array[row, col];
+                }
+
+                if (min == 1) return min;
+            }
+        }
+        return min;
+    }
+
+    void adjustCells(int min, int[,] array, List<int> zrows, List<int> zcols)
+    {
+        for (int i = 0; i < zrows.Count; i++)
+        {
+            for (int col = 0; col < CUSTOMER_COUNT; col++)
+            {
+                array[zrows[i], col] -= min;
+            }
+        }
+
+        for (int i = 0; i < zcols.Count; i++)
+        {
+            for (int row = 0; row < CUSTOMER_COUNT; row++)
+            {
+                array[row, zcols[i]] += min;
+            }
+        }
     }
 
     int[,] ToGraph(int[,] array)
@@ -154,12 +276,14 @@ class Inkeeper_Ennumerate
         {
             for (int col = 0; col < CUSTOMER_COUNT; col++)
             {
+                graph[row, CUSTOMER_COUNT] = -1;
+                graph[CUSTOMER_COUNT, col] = -1;
+                
                 if (array[row, col] == 0)
                 {
                     graph[row, col] = 1;
-                    graph[row, CUSTOMER_COUNT] = -1;
-                    graph[CUSTOMER_COUNT, col] = -1;
                 }
+                else graph[row, col] = 0;
             }
         }
         return graph;
@@ -171,13 +295,10 @@ class Inkeeper_Ennumerate
         //-1 means column -> row (backwards)
         //2 means not in matching and row -> column
         //-2 means not in matching and column -> row
-        
-        var graph2 = new int[CUSTOMER_COUNT, CUSTOMER_COUNT];
-        graph.CopyTo(graph2, 0);
 
         while (true)
         {
-            (bool, List<int>) result = DFS(graph, false, CUSTOMER_COUNT, new List<int>());
+            (bool, List<int>) result = DepthFirstSearch(graph, false, CUSTOMER_COUNT, new List<int>());
 
             if (result.Item1)
             {
@@ -187,7 +308,7 @@ class Inkeeper_Ennumerate
                 int loc = CUSTOMER_COUNT;
                 
                 //add augmenting edges to or remove them from matching
-                for (int i = 0; i < result.Item2.Count; i++)
+                for (int i = 0; i < result.Item2.Count - 1; i++)
                 {
                     if (isRow)
                     {
@@ -216,6 +337,9 @@ class Inkeeper_Ennumerate
                         }
                     }
                 }
+
+                graph[result.Item2[0], CUSTOMER_COUNT] = 0;
+                graph[CUSTOMER_COUNT, result.Item2[^1]] = 0;
             }
 
             else
@@ -226,17 +350,17 @@ class Inkeeper_Ennumerate
         
     }
 
-    (bool, List<int>) DFS(int[,] graph, bool isRow, int loc, List<int> path)
+    (bool, List<int>) DepthFirstSearch(int[,] graph, bool isRow, int loc, List<int> path)
     {
         if (isRow)
         {
-            for (int col = 0; col< CUSTOMER_COUNT; col++)
+            for (int col = 0; col < CUSTOMER_COUNT; col++)
             {
                 if (graph[loc,col] == 1)
                 {
                     path.Add(col);
                     graph[loc, col] = 2;
-                    (bool, List<int>) result = DFS(graph, false, col, path);
+                    (bool, List<int>) result = DepthFirstSearch(graph, false, col, path);
                     if (result.Item1)
                     {
                         return result;
@@ -249,7 +373,6 @@ class Inkeeper_Ennumerate
         {
             if (graph[CUSTOMER_COUNT, loc] == -1)
             {
-                path.Add(CUSTOMER_COUNT);
                 return (true, path);
             }
 
@@ -259,7 +382,7 @@ class Inkeeper_Ennumerate
                 {
                     path.Add(row);
                     graph[row, loc] = -2; 
-                    (bool, List<int>) result = DFS(graph, true, row, path);
+                    (bool, List<int>) result = DepthFirstSearch(graph, true, row, path);
                     if (result.Item1)
                     {
                         return result;
