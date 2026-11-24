@@ -38,6 +38,8 @@ class Inkeeper_Ennumerate
         [0, 0, 1, 2, 0, 1, 0, 0, 2, 0, 1, 2],  //jetsetter
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]; //blank
 
+    private int[] testAmenity = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
     static void Main()
     {
         var c = new Inkeeper_Ennumerate();
@@ -46,7 +48,7 @@ class Inkeeper_Ennumerate
 
     void Run()
     {
-        
+        Solve();
     }
 
     void Output()
@@ -58,74 +60,91 @@ class Inkeeper_Ennumerate
     {
         //make a list of all possible combinations of amenities
         //for each combination, run the hungarian algorithm
-        
-        
+        int[,] matrix = AmenitiesToMatrix(testAmenity);
+        matrix = MakeOneToOne(ReduceColumn(ReduceRow(ToMinimization(matrix))));
+        Hungarian(matrix);
+    }
+
+    int[,] AmenitiesToMatrix(int[] amenities)
+    {
+        int[,] matrix = new int[CUSTOMER_COUNT, FLOOR_COUNT];
+
+        for (int row = 0; row < CUSTOMER_COUNT; row++)
+        {
+            for (int col = 0; col < FLOOR_COUNT; col++)
+            {
+                matrix[row, col] = CUSTOMER_AMENITY[row][amenities[col * 2]] 
+                                   + CUSTOMER_AMENITY[row][amenities[col * 2 + 1]];
+            }
+        }
+
+        return matrix;
     }
     
-    int[,] ToMinimization(int[,] array)
+    int[,] ToMinimization(int[,] matrix)
     {
-        for (int i = 0; i < array.Length; i++)
+        for (int i = 0; i < matrix.GetLength(0); i++)
         {
-            for (int j = 0; j < array.GetLength(1); j++)
+            for (int j = 0; j < matrix.GetLength(1); j++)
             {
-                array[i,j] = MAX_CUSTOMER_AMENITY_SCORE - array[i,j];
+                matrix[i,j] = MAX_CUSTOMER_AMENITY_SCORE - matrix[i,j];
             }
         }
         
-        return array;
+        return matrix;
     }
     
-    int[,] ReduceRow(int[,] array)
+    int[,] ReduceRow(int[,] matrix)
     {
-        for (int row = 0; row < array.Length; row++)
+        for (int row = 0; row < matrix.GetLength(0); row++)
         {
             int rowmin = MAX_CUSTOMER_AMENITY_SCORE;
-            for (int col = 0; col < array.GetLength(1); col++)
+            for (int col = 0; col < matrix.GetLength(1); col++)
             {
-                if (array[row,col] < rowmin)
+                if (matrix[row,col] < rowmin)
                 {
-                    rowmin = array[row,col];
+                    rowmin = matrix[row,col];
                 }
             }
 
-            for (int col = 0; col < array.GetLength(1); col++)
+            for (int col = 0; col < matrix.GetLength(1); col++)
             {
-                array[row,col] -= rowmin;
+                matrix[row,col] -= rowmin;
             }
         }
         
-        return array;
+        return matrix;
     }
 
-    int[,] ReduceColumn(int[,] array)
+    int[,] ReduceColumn(int[,] matrix)
     {
-        for (int col = 0; col < array.GetLength(1); col++)
+        for (int col = 0; col < matrix.GetLength(1); col++)
         {
             int colmin = MAX_CUSTOMER_AMENITY_SCORE;
-            for (int row = 0; row < array.Length; row++)
+            for (int row = 0; row < matrix.GetLength(0); row++)
             {
-                if (array[row,col] < colmin)
+                if (matrix[row,col] < colmin)
                 {
-                    colmin = array[row,col];
+                    colmin = matrix[row,col];
                 }
             }
 
-            for (int row = 0; row < array.Length; row++)
+            for (int row = 0; row < matrix.GetLength(0); row++)
             {
-                array[row,col] -= colmin;
+                matrix[row,col] -= colmin;
             }
         }
         
-        return array;
+        return matrix;
     }
 
-    int[,] MakeOneToOne(int[,] array)
+    int[,] MakeOneToOne(int[,] matrix)
     {
-        int nrows = array.Length;
-        int ncols = array.GetLength(1);
+        int nrows = matrix.GetLength(0);
+        int ncols = matrix.GetLength(1);
         int colMult = nrows / ncols;
 
-        int[,] newarray = new int[nrows, ncols * colMult];
+        int[,] newmatrix = new int[nrows, ncols * colMult];
         
         for (int i = 0; i < ncols; i++)
         {
@@ -134,30 +153,39 @@ class Inkeeper_Ennumerate
                 for (int j = 0; j < colMult; j++)
                 {
                 
-                    newarray[k, i * colMult + j] = array[k, i];
+                    newmatrix[k, i * colMult + j] = matrix[k, i];
                 }
             }
         }
         
-        return newarray;
+        return newmatrix;
     }
 
-    void Hungarian(int[,] array)
+    void Hungarian(int[,] matrix)
     {
         //turn matrix into a bipartite graph
         //While an augmenting path exists, add not-matching edges of path to matching and remove matching edges
         
-        int[,] graph = ToGraph(array);
+        int[,] graph = ToGraph(matrix);
         int[,] matchedgraph = FindAugmenting(graph);
-        int[,] newarray = new int[array.GetLength(0), array.GetLength(1)];
-        array.CopyTo(newarray, 0);
+        int[,] newmatrix = new int[matrix.GetLength(0), matrix.GetLength(1)];
+        
+        for (int row = 0; row < matrix.GetLength(0); row++)
+        {
+            for (int col = 0; col < matrix.GetLength(1); col++)
+            {
+                newmatrix[row, col] = matrix[row, col];
+            }
+        }
+        
+        //matrix.CopyTo(newmatrix, 0);
 
         while (!IsPerfectMatching(matchedgraph))
         {
             matchedgraph = FindAugmenting(matchedgraph);
             (List<int>, List<int>) Z = ZeroCover(matchedgraph);
-            int min = findMinZ(Z.Item1, Z.Item2, newarray);
-            adjustCells(min, newarray, Z.Item1, Z.Item2);
+            int min = findMinZ(Z.Item1, Z.Item2, newmatrix);
+            adjustCells(min, newmatrix, Z.Item1, Z.Item2);
         }
     }
 
@@ -232,16 +260,16 @@ class Inkeeper_Ennumerate
         return (Zrows, Zcols);
     }
 
-    int findMinZ(List<int> zrows, List<int> zcols, int[,] array)
+    int findMinZ(List<int> zrows, List<int> zcols, int[,] matrix)
     {
         int min = MAX_CUSTOMER_AMENITY_SCORE;
         for (int row = 0; row < CUSTOMER_COUNT; row++)
         {
             for (int col = 0; col < CUSTOMER_COUNT; col++)
             {
-                if (zrows.Contains(row) && !zcols.Contains(col) && array[row, col] < min)
+                if (zrows.Contains(row) && !zcols.Contains(col) && matrix[row, col] < min)
                 {
-                    min = array[row, col];
+                    min = matrix[row, col];
                 }
 
                 if (min == 1) return min;
@@ -250,13 +278,13 @@ class Inkeeper_Ennumerate
         return min;
     }
 
-    void adjustCells(int min, int[,] array, List<int> zrows, List<int> zcols)
+    void adjustCells(int min, int[,] matrix, List<int> zrows, List<int> zcols)
     {
         for (int i = 0; i < zrows.Count; i++)
         {
             for (int col = 0; col < CUSTOMER_COUNT; col++)
             {
-                array[zrows[i], col] -= min;
+                matrix[zrows[i], col] -= min;
             }
         }
 
@@ -264,12 +292,12 @@ class Inkeeper_Ennumerate
         {
             for (int row = 0; row < CUSTOMER_COUNT; row++)
             {
-                array[row, zcols[i]] += min;
+                matrix[row, zcols[i]] += min;
             }
         }
     }
 
-    int[,] ToGraph(int[,] array)
+    int[,] ToGraph(int[,] matrix)
     {
         int[,] graph = new int[CUSTOMER_COUNT + 1, CUSTOMER_COUNT + 1];
         for (int row = 0; row < CUSTOMER_COUNT; row++)
@@ -279,7 +307,7 @@ class Inkeeper_Ennumerate
                 graph[row, CUSTOMER_COUNT] = -1;
                 graph[CUSTOMER_COUNT, col] = -1;
                 
-                if (array[row, col] == 0)
+                if (matrix[row, col] == 0)
                 {
                     graph[row, col] = 1;
                 }
@@ -304,38 +332,37 @@ class Inkeeper_Ennumerate
             {
                 List<int> augmenting = result.Item2;
 
-                bool isRow = true;
-                int loc = CUSTOMER_COUNT;
+                bool isRow = false;
+                int loc = augmenting[0];
                 
                 //add augmenting edges to or remove them from matching
-                for (int i = 0; i < result.Item2.Count - 1; i++)
+                for (int i = 1; i < result.Item2.Count; i++)
                 {
                     if (isRow)
                     {
-                        if (graph[i, loc] == -2)
+                        if (graph[augmenting[i], loc] == -2)
                         {
-                            graph[i, loc] = 1;
-                            graph[i, CUSTOMER_COUNT] = -1;
+                            graph[augmenting[i], loc] = 1;
                         }
-                        else if (graph[i, loc] == 2)
+                        else if (graph[augmenting[i], loc] == 2)
                         {
-                            graph[i, loc] = -1;
-                            graph[i, CUSTOMER_COUNT] = 1;
+                            graph[augmenting[i], loc] = -1;
                         }
                     }
                     else
                     {
-                        if (graph[loc, i] == -2)
+                        if (graph[loc, augmenting[i]] == -2)
                         {
-                            graph[loc, i] = 1;
-                            graph[CUSTOMER_COUNT, i] = -1;
+                            graph[loc, augmenting[i]] = 1;
                         }
-                        else if (graph[loc, i] == 2)
+                        else if (graph[loc, augmenting[i]] == 2)
                         {
-                            graph[loc, i] = -1;
-                            graph[CUSTOMER_COUNT, i] = 1;
+                            graph[loc, augmenting[i]] = -1;
                         }
                     }
+
+                    loc = augmenting[i];
+                    isRow = !isRow;
                 }
 
                 graph[result.Item2[0], CUSTOMER_COUNT] = 0;
@@ -358,13 +385,14 @@ class Inkeeper_Ennumerate
             {
                 if (graph[loc,col] == 1)
                 {
-                    path.Add(col);
                     graph[loc, col] = 2;
                     (bool, List<int>) result = DepthFirstSearch(graph, false, col, path);
                     if (result.Item1)
                     {
+                        path.Add(col);
                         return result;
                     }
+                    else graph[loc, col] = 1;
                 }
             }
                 
@@ -380,13 +408,14 @@ class Inkeeper_Ennumerate
             {
                 if (graph[row, loc] == -1)
                 {
-                    path.Add(row);
                     graph[row, loc] = -2; 
                     (bool, List<int>) result = DepthFirstSearch(graph, true, row, path);
                     if (result.Item1)
                     {
+                        path.Add(row);
                         return result;
                     }
+                    else graph[row, loc] = -1;
                 }
             }
                 
