@@ -61,7 +61,14 @@ class Inkeeper_Ennumerate
         //make a list of all possible combinations of amenities
         //for each combination, run the hungarian algorithm
         int[,] matrix = AmenitiesToMatrix(testAmenity);
-        int[,] newmatrix = new int[CUSTOMER_COUNT, CUSTOMER_COUNT];
+        int[,] newmatrix = new int[CUSTOMER_COUNT, FLOOR_COUNT];
+        for (int i = 0; i < CUSTOMER_COUNT; i++)
+        {
+            for (int j = 0; j < FLOOR_COUNT; j++)
+            {
+                newmatrix[i, j] = matrix[i, j];
+            }
+        }
         newmatrix = MakeOneToOne(ReduceColumn(ReduceRow(ToMinimization(newmatrix))));
         int[,] matchedgraph = Hungarian(newmatrix);
         int score = MatchingScore(matchedgraph, matrix);
