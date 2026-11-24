@@ -61,8 +61,10 @@ class Inkeeper_Ennumerate
         //make a list of all possible combinations of amenities
         //for each combination, run the hungarian algorithm
         int[,] matrix = AmenitiesToMatrix(testAmenity);
-        matrix = MakeOneToOne(ReduceColumn(ReduceRow(ToMinimization(matrix))));
-        Hungarian(matrix);
+        int[,] newmatrix = new int[CUSTOMER_COUNT, CUSTOMER_COUNT];
+        newmatrix = MakeOneToOne(ReduceColumn(ReduceRow(ToMinimization(newmatrix))));
+        int[,] matchedgraph = Hungarian(newmatrix);
+        int score = MatchingScore(matchedgraph, matrix);
     }
 
     int[,] AmenitiesToMatrix(int[] amenities)
@@ -161,7 +163,7 @@ class Inkeeper_Ennumerate
         return newmatrix;
     }
 
-    void Hungarian(int[,] matrix)
+    int[,] Hungarian(int[,] matrix)
     {
         //turn matrix into a bipartite graph
         //While an augmenting path exists, add not-matching edges of path to matching and remove matching edges
@@ -182,11 +184,37 @@ class Inkeeper_Ennumerate
 
         while (!IsPerfectMatching(matchedgraph))
         {
-            matchedgraph = FindAugmenting(matchedgraph);
             (List<int>, List<int>) Z = ZeroCover(matchedgraph);
             int min = findMinZ(Z.Item1, Z.Item2, newmatrix);
             adjustCells(min, newmatrix, Z.Item1, Z.Item2);
+            matchedgraph = ToGraph(newmatrix);
+            matchedgraph = FindAugmenting(matchedgraph);
         }
+        
+        return matchedgraph;
+    }
+
+    int MatchingScore(int[,] graph, int[,] matrix)
+    {
+        int score = 0;
+
+        int nrows = matrix.GetLength(0);
+        int ncols = matrix.GetLength(1);
+        int colMult = nrows / ncols;
+
+        for (int row = 0; row < CUSTOMER_COUNT; row++)
+        {
+            for (int col = 0; col < CUSTOMER_COUNT; col++)
+            {
+                if (graph[row, col] == -1)
+                {
+                    score += matrix[row, col / colMult];
+                    break; //since each customer is only on one floor
+                }
+            }
+        }
+        
+        return score;
     }
 
     bool IsPerfectMatching(int[,] graph)
@@ -208,7 +236,7 @@ class Inkeeper_Ennumerate
         List<int> Zcols = new List<int>();
         
         //add unmatched rows to Zrows
-        for (int row = 0; row < graph.GetLength(0); row++)
+        for (int row = 0; row < CUSTOMER_COUNT; row++)
         {
             if (graph[row, CUSTOMER_COUNT] == -1)
             {
@@ -231,7 +259,7 @@ class Inkeeper_Ennumerate
                 {
                     for (int row = 0; row < CUSTOMER_COUNT; row++)
                     {
-                        if (graph[row, Zcols[i]] == -1 && Zrows.Contains(row))
+                        if (graph[row, Zcols[i]] == -1 && !Zrows.Contains(row))
                         {
                             Zrows.Add(row);
                             addedsomething = true;
@@ -326,17 +354,17 @@ class Inkeeper_Ennumerate
 
         while (true)
         {
-            (bool, List<int>) result = DepthFirstSearch(graph, false, CUSTOMER_COUNT, new List<int>());
+            (bool, List<int>) result = DepthFirstSearch(graph, false, 0, CUSTOMER_COUNT, new List<int>());
 
             if (result.Item1)
             {
                 List<int> augmenting = result.Item2;
 
                 bool isRow = false;
-                int loc = augmenting[0];
+                int loc = augmenting[^1];
                 
                 //add augmenting edges to or remove them from matching
-                for (int i = 1; i < result.Item2.Count; i++)
+                for (int i = result.Item2.Count - 2; i >= 0; i--)
                 {
                     if (isRow)
                     {
@@ -365,8 +393,8 @@ class Inkeeper_Ennumerate
                     isRow = !isRow;
                 }
 
-                graph[result.Item2[0], CUSTOMER_COUNT] = 0;
-                graph[CUSTOMER_COUNT, result.Item2[^1]] = 0;
+                graph[result.Item2[^1], CUSTOMER_COUNT] = 0;
+                graph[CUSTOMER_COUNT, result.Item2[0]] = 0;
             }
 
             else
@@ -377,45 +405,46 @@ class Inkeeper_Ennumerate
         
     }
 
-    (bool, List<int>) DepthFirstSearch(int[,] graph, bool isRow, int loc, List<int> path)
+    (bool, List<int>) DepthFirstSearch(int[,] graph, bool isRow, int oldrow, int oldcol, List<int> path)
     {
         if (isRow)
         {
-            for (int col = 0; col < CUSTOMER_COUNT; col++)
+            int startcol = oldcol == CUSTOMER_COUNT ? 0 : oldcol;
+            for (int col = startcol; col < CUSTOMER_COUNT; col++)
             {
-                if (graph[loc,col] == 1)
+                if (graph[oldrow,col] == 1)
                 {
-                    graph[loc, col] = 2;
-                    (bool, List<int>) result = DepthFirstSearch(graph, false, col, path);
+                    graph[oldrow, col] = 2;
+                    (bool, List<int>) result = DepthFirstSearch(graph, false, oldrow, col, path);
                     if (result.Item1)
                     {
                         path.Add(col);
                         return result;
                     }
-                    else graph[loc, col] = 1;
+                    else graph[oldrow, col] = 1;
                 }
             }
                 
         }
         else
         {
-            if (graph[CUSTOMER_COUNT, loc] == -1)
+            if (graph[CUSTOMER_COUNT, oldcol] == -1)
             {
                 return (true, path);
             }
 
             for (int row = 0; row < CUSTOMER_COUNT; row++)
             {
-                if (graph[row, loc] == -1)
+                if (graph[row, oldcol] == -1)
                 {
-                    graph[row, loc] = -2; 
-                    (bool, List<int>) result = DepthFirstSearch(graph, true, row, path);
+                    graph[row, oldcol] = -2; 
+                    (bool, List<int>) result = DepthFirstSearch(graph, true, row, oldcol, path);
                     if (result.Item1)
                     {
                         path.Add(row);
                         return result;
                     }
-                    else graph[row, loc] = -1;
+                    else graph[row, oldcol] = -1;
                 }
             }
                 
