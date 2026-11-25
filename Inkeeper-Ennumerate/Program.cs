@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Diagnostics;
 
 namespace Innkeeper_Ennumerate;
 
@@ -7,6 +8,8 @@ class Inkeeper_Ennumerate
     private static int CUSTOMER_COUNT = 15;
     private static int FLOOR_COUNT = 5;
     private static int AMENITY_COUNT = 12;
+    private static int AMENITIES_PER_FLOOR = 2;
+    private static int AMENITIES_USED = 10;
     private static int MAX_CUSTOMER_AMENITY_SCORE = 4;
     
     private string[] CUSTOMERS =
@@ -48,7 +51,10 @@ class Inkeeper_Ennumerate
 
     void Run()
     {
-        Solve();
+        int[] initAmenityfloor = new int[AMENITIES_USED];
+        bool[] initUsedAmenities = new bool[AMENITY_COUNT];
+        Array.Fill(initAmenityfloor, -1);
+        Console.WriteLine(MaxAmenityScore(initAmenityfloor, initUsedAmenities,0, 0));
     }
 
     void Output()
@@ -56,11 +62,55 @@ class Inkeeper_Ennumerate
         
     }
 
-    void Solve()
+    int MaxAmenityScore(int[] amenityfloor, bool[] usedamenities, int floor, int minAmenity)
+    {
+        //if this is the first amenity on the floor, update minAmenity
+        //All amenities must be after minAmenity
+
+        int maxscore = 0;
+        
+        for (int i = minAmenity; i < AMENITY_COUNT; i++)
+        {
+            if (!usedamenities[i])
+            {
+                for (int j = i + 1; j < AMENITY_COUNT; j++)
+                {
+                    if (!usedamenities[j])
+                    {
+                        amenityfloor[floor * AMENITIES_PER_FLOOR] = i;
+                        amenityfloor[floor * AMENITIES_PER_FLOOR + 1] = j;
+                        usedamenities[i] = true;
+                        usedamenities[j] = true;
+
+                        int newscore = 0;
+
+                        if (floor < FLOOR_COUNT - 1)
+                        {
+                            newscore = MaxAmenityScore(amenityfloor, usedamenities, floor + 1, i + 1);
+                        }
+                        else newscore = Score(amenityfloor);
+                    
+                        //reverse changes for the next configuration
+                        amenityfloor[floor * AMENITIES_PER_FLOOR] = -1;
+                        amenityfloor[floor * AMENITIES_PER_FLOOR + 1] = -1;
+                        usedamenities[i] = false;
+                        usedamenities[j] = false;
+                    
+                        maxscore = Math.Max(maxscore, newscore);
+                    }
+                }
+            }
+        }
+        
+        return maxscore;
+    }
+    
+    int Score(int[] amenityconfig)
     {
         //make a list of all possible combinations of amenities
         //for each combination, run the hungarian algorithm
-        int[,] matrix = AmenitiesToMatrix(testAmenity);
+        
+        int[,] matrix = AmenitiesToMatrix(amenityconfig);
         int[,] newmatrix = new int[CUSTOMER_COUNT, FLOOR_COUNT];
         for (int i = 0; i < CUSTOMER_COUNT; i++)
         {
@@ -71,9 +121,9 @@ class Inkeeper_Ennumerate
         }
         newmatrix = MakeOneToOne(ReduceColumn(ReduceRow(ToMinimization(newmatrix))));
         int[,] matchedgraph = Hungarian(newmatrix);
-        int score = MatchingScore(matchedgraph, matrix);
+        return MatchingScore(matchedgraph, matrix);
     }
-
+    
     int[,] AmenitiesToMatrix(int[] amenities)
     {
         int[,] matrix = new int[CUSTOMER_COUNT, FLOOR_COUNT];
