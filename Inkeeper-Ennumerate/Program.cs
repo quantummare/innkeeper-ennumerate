@@ -32,7 +32,7 @@ class Inkeeper_Ennumerate
         [0, 0, 2, 2, 0, 2, 1, 0, 0, 1, 1, 0],  //zoologist
         [0, 2, 0, 1, 0, 0, 0, 2, 1, 2, 1, 0],  //pensioner
         [1, 0, 1, 0, 2, 0, 0, 0, 2, 1, 2, 0],  //critic
-        [1, 1, 0, 0, 2, 0, 2, 1, 0, 0, 0, 1],  //blogger
+        [1, 1, 0, 0, 2, 0, 2, 1, 0, 0, 0, 2],  //blogger
         [0, 0, 0, 0, 0, 2, 1, 0, 2, 1, 2, 1],  //socialite
         [0, 0, 1, 1, 0, 0, 0, 2, 0, 2, 2, 1],  //politician
         [1, 0, 2, 1, 0, 2, 0, 0, 0, 0, 1, 2],  //celebrity
@@ -51,23 +51,54 @@ class Inkeeper_Ennumerate
 
     void Run()
     {
+        Stopwatch stopwatch = new Stopwatch();
+        stopwatch.Start();
         int[] initAmenityfloor = new int[AMENITIES_USED];
         bool[] initUsedAmenities = new bool[AMENITY_COUNT];
         Array.Fill(initAmenityfloor, -1);
-        Console.WriteLine(MaxAmenityScore(initAmenityfloor, initUsedAmenities,0, 0));
+        (int, int[]) Optimal = MaxAmenityScore(initAmenityfloor, initUsedAmenities, 0, 0);
+        stopwatch.Stop();
+        Output(Optimal.Item1, Optimal.Item2);
+        Console.WriteLine($"Calculation completed in {stopwatch.ElapsedMilliseconds} ms.");
     }
 
-    void Output()
+    void Output(int bestscore, int[] amenityfloor)
     {
+        Console.Write($"The best score is: {bestscore}");
+
+        int[,] matchedgraph = Score(amenityfloor).Item2;
+
+        int customersperfloor = CUSTOMER_COUNT / FLOOR_COUNT;
+        
+        for (int col = 0; col < CUSTOMER_COUNT; col++)
+        {
+
+            if (col % customersperfloor == 0)
+            {
+                Console.WriteLine();
+                Console.Write($"{AMENITIES[amenityfloor[col / 3 * AMENITIES_PER_FLOOR]]} and {AMENITIES[amenityfloor[col / 3 * AMENITIES_PER_FLOOR + 1]]}: ");
+            }
+            
+            for (int row = 0; row < CUSTOMER_COUNT; row++)
+            {
+                if (matchedgraph[row, col] == -1)
+                {
+                    Console.Write($"{CUSTOMERS[row]} ");
+                }
+            }
+        }
+        
+        Console.WriteLine();
+        
         
     }
 
-    int MaxAmenityScore(int[] amenityfloor, bool[] usedamenities, int floor, int minAmenity)
+    (int, int[]) MaxAmenityScore(int[] amenityfloor, bool[] usedamenities, int floor, int minAmenity)
     {
         //if this is the first amenity on the floor, update minAmenity
         //All amenities must be after minAmenity
 
-        int maxscore = 0;
+        (int, int[]) maxscore = (0, amenityfloor);
         
         for (int i = minAmenity; i < AMENITY_COUNT; i++)
         {
@@ -77,26 +108,33 @@ class Inkeeper_Ennumerate
                 {
                     if (!usedamenities[j])
                     {
-                        amenityfloor[floor * AMENITIES_PER_FLOOR] = i;
-                        amenityfloor[floor * AMENITIES_PER_FLOOR + 1] = j;
+                        int[] newAmenityFloor = new int[AMENITIES_USED];
+                        for (int k = 0; k < AMENITIES_USED; k++)
+                        {
+                            newAmenityFloor[k] = amenityfloor[k];
+                        }
+                        
+                        newAmenityFloor[floor * AMENITIES_PER_FLOOR] = i;
+                        newAmenityFloor[floor * AMENITIES_PER_FLOOR + 1] = j;
                         usedamenities[i] = true;
                         usedamenities[j] = true;
 
-                        int newscore = 0;
+                        (int, int[]) newscore = (0, newAmenityFloor);
 
                         if (floor < FLOOR_COUNT - 1)
                         {
-                            newscore = MaxAmenityScore(amenityfloor, usedamenities, floor + 1, i + 1);
+                            newscore = MaxAmenityScore(newAmenityFloor, usedamenities, floor + 1, i + 1);
                         }
-                        else newscore = Score(amenityfloor);
+                        else newscore = (Score(newAmenityFloor).Item1, newAmenityFloor);
                     
                         //reverse changes for the next configuration
-                        amenityfloor[floor * AMENITIES_PER_FLOOR] = -1;
-                        amenityfloor[floor * AMENITIES_PER_FLOOR + 1] = -1;
                         usedamenities[i] = false;
                         usedamenities[j] = false;
-                    
-                        maxscore = Math.Max(maxscore, newscore);
+
+                        if (newscore.Item1 > maxscore.Item1)
+                        {
+                            maxscore = newscore;
+                        }
                     }
                 }
             }
@@ -105,7 +143,7 @@ class Inkeeper_Ennumerate
         return maxscore;
     }
     
-    int Score(int[] amenityconfig)
+    (int, int[,]) Score(int[] amenityconfig)
     {
         //make a list of all possible combinations of amenities
         //for each combination, run the hungarian algorithm
@@ -121,7 +159,7 @@ class Inkeeper_Ennumerate
         }
         newmatrix = MakeOneToOne(ReduceColumn(ReduceRow(ToMinimization(newmatrix))));
         int[,] matchedgraph = Hungarian(newmatrix);
-        return MatchingScore(matchedgraph, matrix);
+        return (MatchingScore(matchedgraph, matrix), matchedgraph);
     }
     
     int[,] AmenitiesToMatrix(int[] amenities)
@@ -467,7 +505,7 @@ class Inkeeper_Ennumerate
         if (isRow)
         {
             int startcol = oldcol == CUSTOMER_COUNT ? 0 : oldcol;
-            for (int col = startcol; col < CUSTOMER_COUNT; col++)
+            for (int col = 0; col < CUSTOMER_COUNT; col++)
             {
                 if (graph[oldrow,col] == 1)
                 {
